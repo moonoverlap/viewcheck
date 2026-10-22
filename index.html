@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>모바일 뷰 체커</title>
+<meta name="description" content="사이트 하나를 여러 모바일 기기 화면 크기로 동시에 띄워 확인하는 도구">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+/* 레이아웃: 상단 컨트롤 패널(주소 · 기기 선택 · 도움말) → 보기 옵션 바 → 기기 프레임을 실제 비율로 가로 나열하는 스테이지 */
+:root{
+  --bg:#F1F3F8;
+  --surface:#FFFFFF;
+  --ink:#131A2E;
+  --muted:#5C6580;
+  --line:#DCE1EC;
+  --accent:#295BFF;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E8EEFF;
+  --bezel:#1A1F2E;
+  --shadow:rgba(19,26,46,.28);
+  --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0C101B; --surface:#141927; --ink:#E6EAF5; --muted:#98A1BB; --line:#262E45;
+    --accent:#5B80FF; --accent-ink:#FFFFFF; --accent-soft:#1A2450; --bezel:#03050A; --shadow:rgba(0,0,0,.6);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0C101B; --surface:#141927; --ink:#E6EAF5; --muted:#98A1BB; --line:#262E45;
+  --accent:#5B80FF; --accent-ink:#FFFFFF; --accent-soft:#1A2450; --bezel:#03050A; --shadow:rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.wrap{padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+
+/* 상단 패널 */
+.panel{background:var(--surface);border-bottom:1px solid var(--line)}
+.panel .wrap{padding-block:14px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;margin-right:8px}
+.logo{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none}
+.brand h1{font-size:16px;font-weight:800;letter-spacing:-.02em;margin:0;line-height:1.2;white-space:nowrap}
+.brand p{margin:0;font-size:12px;color:var(--muted);white-space:nowrap;line-height:1.3}
+
+.url{flex:1 1 360px;min-width:0;display:flex;gap:8px}
+.url input{flex:1;min-width:0;height:40px;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:0 14px;font-size:14px}
+.url input::placeholder{color:var(--muted)}
+.url input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+
+.btn{height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;font-weight:600;font-size:13px;text-decoration:none}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);padding:0 18px}
+.btn.primary:hover{filter:brightness(1.08);color:var(--accent-ink)}
+.btn.sm{height:32px;padding:0 11px;border-radius:8px}
+.btn[aria-pressed="true"]{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+
+/* 기기 선택 */
+.groups{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:flex-start}
+.group{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.glabel{font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--muted);margin-right:2px}
+.list{display:contents}
+.chip{height:30px;padding:0 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;white-space:nowrap}
+.chip .w{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip[aria-pressed="true"] .w{color:inherit;opacity:.78}
+.cwrap{display:inline-flex}
+.cwrap .chip{border-top-right-radius:0;border-bottom-right-radius:0;padding-right:8px}
+.chip-x{height:30px;width:26px;border:1px solid var(--line);border-left:0;border-radius:0 999px 999px 0;background:var(--surface);cursor:pointer;color:var(--muted);display:grid;place-items:center;padding:0 4px 0 0}
+.chip-x:hover{color:var(--accent)}
+.chip.add{border-style:dashed;color:var(--muted)}
+.addform{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.addform input{height:30px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:0 8px;width:70px;font-size:13px;font-variant-numeric:tabular-nums}
+.addform input#cName{width:120px}
+.addform input:focus{border-color:var(--accent);outline:none}
+.addform .x{color:var(--muted);font-size:12px}
+
+details.help{font-size:12.5px;color:var(--muted)}
+details.help summary{cursor:pointer;font-weight:600;color:var(--ink);width:max-content;max-width:100%}
+details.help ul{margin:8px 0 2px;padding-left:18px;display:grid;gap:4px;max-width:78ch}
+details.help b{color:var(--ink);font-weight:600}
+
+/* 보기 옵션 바 */
+.bar{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding-block:16px 18px}
+.src{font-size:13px;color:var(--muted);min-width:0;display:flex;gap:8px;align-items:baseline;flex:1 1 240px}
+.src b{color:var(--ink);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.src .count{white-space:nowrap;font-variant-numeric:tabular-nums}
+.ctrls{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{height:30px;padding:0 12px;border:0;background:transparent;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
+.zoom{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.zoom input{width:120px;accent-color:var(--accent)}
+.zoom output{min-width:40px;font-variant-numeric:tabular-nums;color:var(--ink);font-weight:700}
+
+/* 스테이지 */
+.stage{display:flex;flex-wrap:wrap;gap:34px 28px;align-items:flex-start;padding-bottom:56px}
+.dev{margin:0;display:flex;flex-direction:column;gap:10px;--s:.6;--r:40;max-width:100%}
+.cap{display:flex;align-items:center;gap:2px 8px;flex-wrap:wrap;min-height:26px;min-width:0}
+.cap b{font-size:13px;font-weight:700;letter-spacing:-.01em}
+.cap .dim{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cap .acts{margin-left:auto;display:flex;gap:2px}
+.ib{width:26px;height:26px;display:grid;place-items:center;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer;text-decoration:none}
+.ib:hover{background:var(--accent-soft);color:var(--accent)}
+.frame{background:var(--bezel);padding:8px;border-radius:calc(8px + var(--r) * var(--s) * 1px);box-shadow:0 18px 36px -18px var(--shadow)}
+.screen{position:relative;overflow:hidden;background:#FFFFFF;border-radius:calc(var(--r) * var(--s) * 1px)}
+.screen iframe{position:absolute;top:0;left:0;border:0;transform-origin:0 0;background:#FFFFFF;display:block}
+.stage.flat .frame{background:transparent;padding:0;box-shadow:0 0 0 1px var(--line),0 10px 24px -16px var(--shadow);border-radius:3px}
+.stage.flat .screen{border-radius:3px}
+.empty{border:1px dashed var(--line);border-radius:14px;padding:40px 20px;text-align:center;color:var(--muted);margin-bottom:56px}
+.empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;font-weight:500;max-width:min(560px,calc(100vw - 32px));box-shadow:0 12px 30px -12px var(--shadow);z-index:20}
+
+@media (max-width:560px){
+  .brand p{display:none}
+  .url{flex-basis:100%}
+  .zoom input{width:96px}
+}
+@media (prefers-reduced-motion:no-preference){
+  .chip,.btn,.ib{transition:background-color .15s,border-color .15s,color .15s}
+}
+</style>
+</head>
+<body>
+
+<header class="panel">
+  <div class="wrap">
+    <div class="row">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3"/></svg>
+        </div>
+        <div>
+          <h1>모바일 뷰 체커</h1>
+          <p>한 주소를 여러 기기 화면으로 한 번에</p>
+        </div>
+      </div>
+      <form class="url" id="urlForm" autocomplete="off">
+        <label class="sr" for="urlIn">확인할 사이트 주소</label>
+        <input id="urlIn" type="text" inputmode="url" list="recent" placeholder="확인할 주소 입력 (예: moonoverlap.github.io/...)" spellcheck="false">
+        <datalist id="recent"></datalist>
+        <button class="btn primary" type="submit">열기</button>
+      </form>
+      <button class="btn" type="button" id="fileBtn" title="HTML 파일 또는 상세페이지 이미지를 불러옵니다">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+        파일 열기
+      </button>
+      <input class="sr" type="file" id="fileIn" accept=".html,.htm,image/*" tabindex="-1" aria-hidden="true">
+    </div>
+
+    <div class="groups" id="groups">
+      <div class="group" data-g="Galaxy"><span class="glabel">GALAXY</span><span class="list"></span></div>
+      <div class="group" data-g="iPhone"><span class="glabel">IPHONE</span><span class="list"></span></div>
+      <div class="group" data-g="태블릿·PC"><span class="glabel">태블릿·PC</span><span class="list"></span></div>
+      <div class="group" data-g="직접 추가"><span class="glabel">직접 추가</span><span class="list"></span>
+        <button class="chip add" type="button" id="addBtn" aria-expanded="false">+ 크기 추가</button>
+        <form class="addform" id="addForm" hidden>
+          <label class="sr" for="cName">기기 이름</label>
+          <input id="cName" type="text" placeholder="이름(선택)" maxlength="20">
+          <label class="sr" for="cW">가로(px)</label>
+          <input id="cW" type="number" inputmode="numeric" placeholder="가로" min="240" max="2560" required>
+          <span class="x">×</span>
+          <label class="sr" for="cH">세로(px)</label>
+          <input id="cH" type="number" inputmode="numeric" placeholder="세로" min="240" max="2560" required>
+          <button class="btn sm primary" type="submit">추가</button>
+        </form>
+      </div>
+    </div>
+
+    <details class="help" id="help">
+      <summary>화면이 안 보이거나 다르게 보일 때</summary>
+      <ul>
+        <li><b>빈 화면·'연결 거부'</b>가 뜨면 그 사이트가 다른 페이지 안에 삽입되는 걸 막아둔 경우입니다(대형 포털·쇼핑몰에 많음). 기기 이름 옆 ↗ 버튼으로 새 탭에서 확인하세요. 직접 만든 페이지(GitHub Pages 등)는 대부분 정상으로 열립니다.</li>
+        <li>이 도구는 <b>화면 너비만</b> 바꿉니다. m. 주소처럼 모바일 페이지를 따로 주는 사이트는 m. 주소를 직접 입력하세요.</li>
+        <li>기기 치수는 기본 화면 설정 기준 대표값(CSS px)입니다. 화면 확대·글자 크기 설정, 브라우저 주소창 높이에 따라 실제로 보이는 영역은 달라질 수 있습니다.</li>
+        <li><b>파일 열기</b>: 이미지 한 장으로 된 상세페이지는 기기 너비에 맞춰 보여줍니다. HTML 파일은 같은 폴더의 이미지·CSS를 불러오지 못하므로 파일 하나로 된 페이지만 정상 표시됩니다.</li>
+      </ul>
+    </details>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="bar">
+    <div class="src"><span>보는 중</span><b id="srcLabel">샘플 페이지</b><span class="count" id="count"></span></div>
+    <div class="ctrls">
+      <div class="seg" role="group" aria-label="화면 방향">
+        <button type="button" id="portBtn" aria-pressed="true">세로</button>
+        <button type="button" id="landBtn" aria-pressed="false">가로</button>
+      </div>
+      <label class="zoom" for="zoomIn">배율
+        <input id="zoomIn" type="range" min="20" max="100" step="5" value="60">
+        <output id="zoomOut" for="zoomIn">60%</output>
+      </label>
+      <button class="btn sm" type="button" id="fitBtn">화면에 맞춤</button>
+      <button class="btn sm" type="button" id="bezelBtn" aria-pressed="true">베젤</button>
+      <button class="btn sm" type="button" id="reloadAll">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        전체 새로고침
+      </button>
+    </div>
+  </div>
+
+  <div class="empty" id="empty" hidden><b>선택한 기기가 없습니다</b>위에서 확인할 기기를 하나 이상 눌러 주세요.</div>
+  <section class="stage" id="stage" aria-label="기기별 미리보기"></section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(() => {
+  // 대표 뷰포트(CSS px, 세로 기준). 기기 설정에 따라 실제 값과 다를 수 있음.
+  const DEVICES = [
+    {id:'s24',   g:'Galaxy',   t:'phone',  name:'Galaxy S24·S25',   w:360,  h:780},
+    {id:'sult',  g:'Galaxy',   t:'phone',  name:'Galaxy S Ultra',   w:384,  h:824},
+    {id:'ga',    g:'Galaxy',   t:'phone',  name:'Galaxy A 시리즈',  w:412,  h:915},
+    {id:'flip',  g:'Galaxy',   t:'phone',  name:'Galaxy Z Flip',    w:360,  h:880},
+    {id:'foldc', g:'Galaxy',   t:'phone',  name:'Z Fold 커버',      w:344,  h:882},
+    {id:'ise',   g:'iPhone',   t:'phone',  name:'iPhone SE',        w:375,  h:667},
+    {id:'i16',   g:'iPhone',   t:'phone',  name:'iPhone 15·16',     w:393,  h:852},
+    {id:'i17',   g:'iPhone',   t:'phone',  name:'iPhone 16 Pro·17', w:402,  h:874},
+    {id:'ipm',   g:'iPhone',   t:'phone',  name:'iPhone Pro Max',   w:440,  h:956},
+    {id:'ipmini',g:'태블릿·PC', t:'tablet', name:'iPad mini',        w:744,  h:1133},
+    {id:'ipair', g:'태블릿·PC', t:'tablet', name:'iPad Air 11"',     w:820,  h:1180},
+    {id:'nb',    g:'태블릿·PC', t:'pc',     name:'노트북',           w:1280, h:800},
+    {id:'pc',    g:'태블릿·PC', t:'pc',     name:'PC 모니터',        w:1920, h:1080}
+  ];
+  const DEFAULT_SEL = ['s24','sult','ise','i16','ipm'];
+  const KEY = 'mobile-view-checker.v1';
+  const SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads';
+
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  let S = {sel: DEFAULT_SEL.slice(), scale: null, land: false, bezel: true, url: '', recents: [], custom: []};
+  try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(S, JSON.parse(raw)); } catch (e) {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+  const allDevices = () => DEVICES.concat((S.custom || []).map(c => ({...c, g:'직접 추가', t: c.w >= 1024 ? 'pc' : c.w >= 600 ? 'tablet' : 'phone'})));
+  const find = (id) => allDevices().find(d => d.id === id);
+  const dims = (d) => (S.land && d.t !== 'pc') ? {w: d.h, h: d.w} : {w: d.w, h: d.h};
+  S.sel = S.sel.filter(id => find(id));
+
+  const stage = $('#stage'), urlIn = $('#urlIn'), zoomIn = $('#zoomIn'), zoomOut = $('#zoomOut');
+  const cards = new Map();
+
+  const ICON = {
+    reload: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
+    open: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+    x: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+  };
+
+  // 샘플 페이지: 각 기기에서 실제 보이는 너비·높이와 반응형 구간을 표시
+  const SAMPLE = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;color:#131A2E;background:#fff;padding-bottom:72px}
+.top{background:#295BFF;color:#fff;padding:22px 18px 24px}
+.tag{font-size:11px;letter-spacing:.08em;opacity:.8;font-weight:700}
+.size{font-size:42px;font-weight:800;margin:6px 0 0;font-variant-numeric:tabular-nums;letter-spacing:-.03em;line-height:1.1}
+.unit{font-size:14px;opacity:.75;font-weight:600;margin-left:4px;letter-spacing:0}
+.bp{display:inline-block;margin-top:12px;font-size:13px;font-weight:600;background:rgba(255,255,255,.18);padding:5px 11px;border-radius:99px}
+h2{font-size:15px;margin:20px 16px 0;letter-spacing:-.01em}
+.grid{display:grid;grid-template-columns:1fr;gap:12px;padding:12px 16px}
+@media(min-width:400px){.grid{grid-template-columns:1fr 1fr}}
+@media(min-width:700px){.grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1000px){.grid{grid-template-columns:repeat(4,1fr)}}
+.ph{aspect-ratio:1;border-radius:8px;background:linear-gradient(135deg,#DCE4FF,#F1F3F8)}
+.nm{font-size:14px;margin:8px 0 2px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pr{font-size:13px;color:#5C6580}
+.foot{font-size:13px;color:#5C6580;margin:8px 16px 24px;line-height:1.6}
+.cta{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #DCE1EC;padding:10px 16px}
+.cta div{background:#295BFF;color:#fff;text-align:center;font-weight:700;border-radius:10px;padding:13px;font-size:15px}
+</style></head><body>
+<div class="top"><div class="tag">SAMPLE · 이 기기에서 보이는 크기</div><div class="size"><span id="s">-</span><span class="unit">px</span></div><div class="bp" id="b"></div></div>
+<h2>반응형 확인용 상품 목록</h2>
+<div class="grid">
+<div><div class="ph"></div><div class="nm">상품명 자리입니다. 이름이 길면 두 줄까지 보이고 나머지는 말줄임 처리됩니다</div><div class="pr">가격 영역</div></div>
+<div><div class="ph"></div><div class="nm">짧은 상품명</div><div class="pr">가격 영역</div></div>
+<div><div class="ph"></div><div class="nm">상품명 자리입니다</div><div class="pr">가격 영역</div></div>
+<div><div class="ph"></div><div class="nm">상품명 자리입니다</div><div class="pr">가격 영역</div></div>
+</div>
+<p class="foot">상단 주소창에 확인할 사이트 주소를 넣으면 이 샘플 대신 실제 페이지가 열립니다. 하단 고정 버튼은 구매 버튼 바가 화면을 얼마나 가리는지 보여주는 예시입니다.</p>
+<div class="cta"><div>구매하기</div></div>
+<script>
+function u(){var w=innerWidth,h=innerHeight;document.getElementById('s').textContent=w+' × '+h;
+document.getElementById('b').textContent=w<400?'1열 구간 · 400px 미만':w<700?'2열 구간 · 400~699px':w<1000?'3열 구간 · 700~999px':'4열 구간 · 1000px 이상';}
+u();addEventListener('resize',u);
+<\/script></body></html>`;
+
+  const imgDoc = (data) => `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:#fff}img{display:block;width:100%;height:auto}</style></head><body><img src="${data}" alt=""></body></html>`;
+
+  let source = S.url ? {type:'url', src:S.url} : {type:'sample', html:SAMPLE};
+
+  // ---------- 기기 칩 ----------
+  function renderChips() {
+    document.querySelectorAll('#groups .group').forEach(box => {
+      const list = box.querySelector('.list');
+      list.innerHTML = '';
+      allDevices().filter(d => d.g === box.dataset.g).forEach(d => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.setAttribute('aria-pressed', S.sel.includes(d.id) ? 'true' : 'false');
+        b.innerHTML = `${esc(d.name)}<span class="w">${d.w}</span>`;
+        b.addEventListener('click', () => toggle(d.id));
+        if (d.g === '직접 추가') {
+          const wrap = document.createElement('span');
+          wrap.className = 'cwrap';
+          const x = document.createElement('button');
+          x.type = 'button';
+          x.className = 'chip-x';
+          x.setAttribute('aria-label', `${d.name} 삭제`);
+          x.title = '삭제';
+          x.innerHTML = ICON.x;
+          x.addEventListener('click', () => removeCustom(d.id));
+          wrap.append(b, x);
+          list.append(wrap);
+        } else {
+          list.append(b);
+        }
+      });
+    });
+  }
+
+  function toggle(id) {
+    S.sel = S.sel.includes(id) ? S.sel.filter(x => x !== id) : S.sel.concat(id);
+    save(); renderChips(); syncStage();
+  }
+
+  function removeCustom(id) {
+    S.custom = S.custom.filter(c => c.id !== id);
+    S.sel = S.sel.filter(x => x !== id);
+    save(); renderChips(); syncStage();
+  }
+
+  // ---------- 스테이지 ----------
+  function makeCard(d) {
+    const fig = document.createElement('figure');
+    fig.className = 'dev';
+    fig.style.setProperty('--r', d.t === 'phone' ? 40 : d.t === 'tablet' ? 22 : 4);
+    fig.innerHTML =
+      `<figcaption class="cap"><b>${esc(d.name)}</b><span class="dim"></span>` +
+      `<span class="acts"><button type="button" class="ib" data-act="reload" title="새로고침" aria-label="${esc(d.name)} 새로고침">${ICON.reload}</button>` +
+      `<a class="ib" data-act="open" target="_blank" rel="noopener" title="새 탭에서 열기" aria-label="새 탭에서 열기" hidden>${ICON.open}</a></span></figcaption>` +
+      `<div class="frame"><div class="screen"><iframe title="${esc(d.name)} 화면" sandbox="${SANDBOX}"></iframe></div></div>`;
+    fig.querySelector('[data-act="reload"]').addEventListener('click', () => reload(fig.querySelector('iframe')));
+    return fig;
+  }
+
+  function applySource(f) {
+    if (source.type === 'url') {
+      f.removeAttribute('srcdoc');
+      f.src = source.src;
+    } else {
+      f.srcdoc = source.html;
+    }
+  }
+
+  function reload(f) {
+    if (source.type === 'url') {
+      f.src = 'about:blank';
+      setTimeout(() => { f.src = source.src; }, 40);
+    } else {
+      f.srcdoc = source.html;
+    }
+  }
+
+  function updateLinks() {
+    cards.forEach(el => {
+      const a = el.querySelector('[data-act="open"]');
+      if (source.type === 'url') { a.href = source.src; a.hidden = false; }
+      else { a.removeAttribute('href'); a.hidden = true; }
+    });
+  }
+
+  function syncStage() {
+    const want = allDevices().map(d => d.id).filter(id => S.sel.includes(id));
+    for (const [id, el] of cards) {
+      if (!want.includes(id)) { el.remove(); cards.delete(id); }
+    }
+    want.forEach((id, i) => {
+      if (cards.has(id)) return;
+      const el = makeCard(find(id));
+      const next = want.slice(i + 1).map(x => cards.get(x)).find(Boolean) || null;
+      stage.insertBefore(el, next); // 기존 iframe은 이동시키지 않음(이동 시 새로고침됨)
+      cards.set(id, el);
+      applySource(el.querySelector('iframe'));
+    });
+    $('#empty').hidden = want.length > 0;
+    $('#count').textContent = want.length ? `· ${want.length}대` : '';
+    updateLinks();
+    layout();
+  }
+
+  function layout() {
+    const s = S.scale || .6;
+    const pad = S.bezel ? 8 : 0;
+    stage.classList.toggle('flat', !S.bezel);
+    for (const [id, el] of cards) {
+      const {w, h} = dims(find(id));
+      const sw = Math.round(w * s), sh = Math.round(h * s);
+      el.style.setProperty('--s', s);
+      el.style.width = (sw + pad * 2) + 'px';
+      const sc = el.querySelector('.screen');
+      sc.style.width = sw + 'px';
+      sc.style.height = sh + 'px';
+      const f = el.querySelector('iframe');
+      f.style.width = w + 'px';
+      f.style.height = h + 'px';
+      f.style.transform = `scale(${s})`;
+      el.querySelector('.dim').textContent = `${w} × ${h}`;
+    }
+    zoomIn.value = Math.round(s * 100);
+    zoomOut.textContent = Math.round(s * 100) + '%';
+    $('#portBtn').setAttribute('aria-pressed', S.land ? 'false' : 'true');
+    $('#landBtn').setAttribute('aria-pressed', S.land ? 'true' : 'false');
+    $('#bezelBtn').setAttribute('aria-pressed', S.bezel ? 'true' : 'false');
+  }
+
+  function fit() {
+    const ids = [...cards.keys()];
+    if (!ids.length) return;
+    const pad = S.bezel ? 16 : 0;
+    let s;
+    if (window.innerWidth < 700) {
+      const maxW = Math.max(...ids.map(id => dims(find(id)).w));
+      s = (stage.clientWidth - pad) / maxW;
+    } else {
+      const maxH = Math.max(...ids.map(id => dims(find(id)).h));
+      const top = stage.getBoundingClientRect().top + window.scrollY;
+      s = (window.innerHeight - top - 36 - pad - 28) / maxH;
+    }
+    s = Math.min(1, Math.max(.2, Math.floor(s * 20) / 20));
+    S.scale = s; save(); layout();
+  }
+
+  // ---------- 소스 ----------
+  function setSource(next) {
+    source = next;
+    if (source.type === 'sample') source.html = SAMPLE;
+    $('#srcLabel').textContent =
+      source.type === 'url' ? source.src.replace(/^https?:\/\//, '') :
+      source.type === 'file' ? `파일 · ${source.label}` : '샘플 페이지';
+    $('#srcLabel').title = source.type === 'url' ? source.src : '';
+    cards.forEach(el => applySource(el.querySelector('iframe')));
+    updateLinks();
+  }
+
+  function norm(v) {
+    v = v.trim();
+    if (!v) return '';
+    if (/^(localhost|127\.0\.0\.1|\d{1,3}(\.\d{1,3}){3})(:\d+)?(\/|$)/i.test(v)) v = 'http://' + v;
+    else if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+    try { const u = new URL(v); return /^https?:$/.test(u.protocol) && u.hostname.includes('.') || /localhost|127\.0\.0\.1/.test(u.hostname) ? u.href : ''; }
+    catch (e) { return ''; }
+  }
+
+  function renderRecents() {
+    $('#recent').innerHTML = (S.recents || []).map(u => `<option value="${esc(u)}"></option>`).join('');
+  }
+
+  let tt;
+  function toast(msg) {
+    const el = $('#toast');
+    el.textContent = msg; el.hidden = false;
+    clearTimeout(tt); tt = setTimeout(() => { el.hidden = true; }, 4000);
+  }
+
+  // ---------- 이벤트 ----------
+  $('#urlForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const raw = urlIn.value;
+    if (!raw.trim()) { S.url = ''; save(); setSource({type:'sample'}); return; }
+    const u = norm(raw);
+    if (!u) { toast('주소 형식을 확인해 주세요. 예: https://example.com'); return; }
+    if (location.protocol === 'https:' && u.startsWith('http:') && !/^http:\/\/(localhost|127\.0\.0\.1)/.test(u)) {
+      toast('이 페이지는 https라서 http:// 주소는 막힐 수 있어요. https:// 주소로 열어보세요.');
+    }
+    urlIn.value = u;
+    S.url = u;
+    S.recents = [u].concat((S.recents || []).filter(x => x !== u)).slice(0, 8);
+    save(); renderRecents();
+    setSource({type:'url', src:u});
+  });
+
+  $('#fileBtn').addEventListener('click', () => $('#fileIn').click());
+  $('#fileIn').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (f.type.startsWith('image/')) {
+      const r = new FileReader();
+      r.onload = () => setSource({type:'file', label:f.name, html:imgDoc(r.result)});
+      r.onerror = () => toast('이미지를 읽지 못했어요. 다른 파일로 시도해 주세요.');
+      r.readAsDataURL(f);
+    } else if (/\.html?$/i.test(f.name) || f.type === 'text/html') {
+      f.text().then(t => setSource({type:'file', label:f.name, html:t}))
+        .catch(() => toast('파일을 읽지 못했어요. 다른 파일로 시도해 주세요.'));
+    } else {
+      toast('HTML 파일이나 이미지 파일만 열 수 있어요.');
+    }
+    e.target.value = '';
+  });
+
+  zoomIn.addEventListener('input', () => { S.scale = +zoomIn.value / 100; layout(); });
+  zoomIn.addEventListener('change', save);
+  $('#fitBtn').addEventListener('click', fit);
+  $('#portBtn').addEventListener('click', () => { S.land = false; save(); layout(); });
+  $('#landBtn').addEventListener('click', () => { S.land = true; save(); layout(); });
+  $('#bezelBtn').addEventListener('click', () => { S.bezel = !S.bezel; save(); layout(); });
+  $('#reloadAll').addEventListener('click', () => cards.forEach(el => reload(el.querySelector('iframe'))));
+
+  const addForm = $('#addForm'), addBtn = $('#addBtn');
+  addBtn.addEventListener('click', () => {
+    addForm.hidden = !addForm.hidden;
+    addBtn.setAttribute('aria-expanded', addForm.hidden ? 'false' : 'true');
+    if (!addForm.hidden) $('#cW').focus();
+  });
+  addForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const w = Math.round(+$('#cW').value), h = Math.round(+$('#cH').value);
+    if (!(w >= 240 && w <= 2560 && h >= 240 && h <= 2560)) { toast('가로·세로는 240~2560 사이 숫자로 입력해 주세요.'); return; }
+    const name = ($('#cName').value.trim() || `${w}×${h}`).slice(0, 20);
+    const id = 'c' + Date.now().toString(36);
+    S.custom = (S.custom || []).concat({id, name, w, h});
+    S.sel = S.sel.concat(id);
+    save(); addForm.reset(); addForm.hidden = true; addBtn.setAttribute('aria-expanded', 'false');
+    renderChips(); syncStage();
+  });
+
+  // ---------- 시작 ----------
+  if (S.url) urlIn.value = S.url;
+  renderRecents();
+  renderChips();
+  setSource(source);
+  syncStage();
+  if (S.scale == null) requestAnimationFrame(fit);
+})();
+</script>
+</body>
+</html>
